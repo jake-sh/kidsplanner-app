@@ -385,7 +385,7 @@ function cancelPatternSetup() {
 function openFeature(i) {
   // Kids Planner 메뉴 라우팅
   // 0: 알림장, 1: 일정, 2: 알람, 3: 메모, 4: 할 일, 5: 통계, 6: 연락처, 7: 채팅, 8: 앨범
-  if (i === 0) showScreen('noticeScreen');
+  if (i === 0) openNotice();
   else if (i === 1) showScreen('scheduleScreen');
   else if (i === 2) showScreen('alarmScreen');
   else if (i === 3) openMemo();
@@ -457,6 +457,69 @@ function openPlanFeature(i) {
     `<div class="feature-placeholder"><h3>${_ft}</h3>` +
     (_fd||[]).map(t=>`<div class="plan-item"><div class="plan-check"></div>${t}</div>`).join('') + '</div>';
   showScreen('planFeature');
+}
+
+// ── 알림장 ──────────────────────────────────────────
+var _noticeYear = new Date().getFullYear();
+var _noticeMon  = new Date().getMonth() + 1;
+
+function openNotice() {
+  showScreen('noticeScreen');
+  updateNoticeYearMon();
+  loadNotices();
+}
+
+function updateNoticeYearMon() {
+  var el = document.getElementById('noticeYearMon');
+  if (el) el.textContent = _noticeYear + '년 ' + String(_noticeMon).padStart(2,'0') + '월';
+}
+
+function noticeMonthMove(dir) {
+  _noticeMon += dir;
+  if (_noticeMon < 1)  { _noticeMon = 12; _noticeYear--; }
+  if (_noticeMon > 12) { _noticeMon = 1;  _noticeYear++; }
+  updateNoticeYearMon();
+  loadNotices();
+}
+
+function loadNotices() {
+  var listEl    = document.getElementById('noticeList');
+  var loadingEl = document.getElementById('noticeLoading');
+  if (!listEl) return;
+
+  listEl.innerHTML = '';
+  if (loadingEl) loadingEl.style.display = 'block';
+
+  var ym = _noticeYear + '-' + String(_noticeMon).padStart(2,'0');
+
+  db.collection('alimjang')
+    .where('date', '>=', ym + '-01')
+    .where('date', '<=', ym + '-31')
+    .orderBy('date', 'desc')
+    .get()
+    .then(function(snap) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (snap.empty) {
+        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;">이번 달 알림장이 없습니다.</div>';
+        return;
+      }
+      listEl.innerHTML = snap.docs.map(function(doc) {
+        var d = doc.data();
+        var content = (d.content || '').replace(/\n/g, '<br>');
+        return '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+          '<span style="font-size:12px;color:#8B8FA8;">' + (d.date||'') + '</span>' +
+          '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(d.subject||'') + '</span>' +
+          '</div>' +
+          '<div style="font-size:14px;line-height:1.7;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;">불러오기 실패: ' + e.message + '</div>';
+      console.error('[알림장]', e);
+    });
 }
 
 
