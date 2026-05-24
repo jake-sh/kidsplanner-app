@@ -1,4 +1,4 @@
-const CACHE = 'kidsplanner-v102';
+const CACHE = 'kidsplanner-v103';
 const PRECACHE = ['./', './index.html', './app.js', './style.css', './manifest.json'];
 
 self.addEventListener('install', e => {

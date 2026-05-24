@@ -460,27 +460,12 @@ function openPlanFeature(i) {
 }
 
 // ── 알림장 ──────────────────────────────────────────
-var _noticeYear = new Date().getFullYear();
-var _noticeMon  = new Date().getMonth() + 1;
-
 function openNotice() {
   showScreen('noticeScreen');
-  updateNoticeYearMon();
   loadNotices();
 }
 
-function updateNoticeYearMon() {
-  var el = document.getElementById('noticeYearMon');
-  if (el) el.textContent = _noticeYear + '년 ' + String(_noticeMon).padStart(2,'0') + '월';
-}
-
-function noticeMonthMove(dir) {
-  _noticeMon += dir;
-  if (_noticeMon < 1)  { _noticeMon = 12; _noticeYear--; }
-  if (_noticeMon > 12) { _noticeMon = 1;  _noticeYear++; }
-  updateNoticeYearMon();
-  loadNotices();
-}
+function noticeMonthMove(dir) {} // 당일만 표시하므로 미사용
 
 function loadNotices() {
   var listEl    = document.getElementById('noticeList');
@@ -490,35 +475,52 @@ function loadNotices() {
   listEl.innerHTML = '';
   if (loadingEl) loadingEl.style.display = 'block';
 
-  var ym = _noticeYear + '-' + String(_noticeMon).padStart(2,'0');
-
-  db.collection('alimjang')
-    .where('date', '>=', ym + '-01')
-    .where('date', '<=', ym + '-31')
-    .orderBy('date', 'desc')
-    .get()
+  // alimjang_today 컬렉션에서 당일 데이터 빠르게 읽기
+  // 학생이 여러 명일 수 있으므로 전체 문서 읽기
+  db.collection('alimjang_today').get()
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
+
       if (snap.empty) {
-        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;">이번 달 알림장이 없습니다.</div>';
+        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;font-size:14px;">📚<br><br>오늘의 알림장이 없습니다.<br><span style="font-size:12px;opacity:0.7;">매일 오후 6시에 업데이트됩니다.</span></div>';
         return;
       }
-      listEl.innerHTML = snap.docs.map(function(doc) {
+
+      var html = '';
+      snap.docs.forEach(function(doc) {
         var d = doc.data();
-        var content = (d.content || '').replace(/\n/g, '<br>');
-        return '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
-          '<span style="font-size:12px;color:#8B8FA8;">' + (d.date||'') + '</span>' +
-          '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(d.subject||'') + '</span>' +
-          '</div>' +
-          '<div style="font-size:14px;line-height:1.7;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
-          '</div>';
-      }).join('');
+        var today = new Date().toISOString().slice(0,10);
+
+        // 오늘 날짜 데이터만 표시
+        if (d.date !== today) {
+          return;
+        }
+
+        (d.notices || []).forEach(function(n) {
+          var content = (n.content || '').replace(/\n/g, '<br>');
+          html +=
+            '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+            '<span style="font-size:12px;color:#8B8FA8;">' + esc(n.date||'') + '</span>' +
+            '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(n.subject||'') + '</span>' +
+            '</div>' +
+            '<div style="font-size:14px;line-height:1.8;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
+            '</div>';
+        });
+      });
+
+      if (!html) {
+        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;font-size:14px;">📚<br><br>오늘의 알림장이 없습니다.<br><span style="font-size:12px;opacity:0.7;">매일 오후 6시에 업데이트됩니다.</span></div>';
+      } else {
+        var today = new Date().toISOString().slice(0,10);
+        listEl.innerHTML =
+          '<div style="text-align:center;font-size:12px;color:#8B8FA8;padding:8px 0 12px;">' + today + ' 알림장</div>' +
+          html;
+      }
     })
     .catch(function(e) {
       if (loadingEl) loadingEl.style.display = 'none';
-      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;">불러오기 실패: ' + e.message + '</div>';
-      console.error('[알림장]', e);
+      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;font-size:13px;">불러오기 실패<br>' + e.message + '</div>';
     });
 }
 
