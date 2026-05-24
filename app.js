@@ -3973,7 +3973,7 @@ async function getSW() {
 }
 
 // ⚠️ 새 Firebase 프로젝트의 VAPID 키와 Render 서버 URL로 변경 필요!
-const VAPID_KEY = 'YOUR_VAPID_KEY_HERE';
+const VAPID_KEY = 'BAPRCLaDbPf-Q5YC_SzT_eB0neoKwvF3JpFT8XQg4K1QBjwcRXCXUCoGTv-OC6g6-kuycVU_NrfHa9xo7htknl0';
 const FCM_SERVER = 'https://YOUR-RENDER-APP.onrender.com';
 
 let fcmToken = localStorage.getItem('fcmToken') || null;
