@@ -2,12 +2,12 @@
 // ⚠️ 새 Kids Planner 프로젝트로 변경 필요!
 // Firebase 콘솔에서 새 프로젝트 만든 후 아래 설정 교체
 const firebaseConfig = {
-  apiKey: "YOUR_NEW_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyD-y5ZAx07RKP266wSk5Wn8iA31TKrw2hA",
+  authDomain: "kids-planner-54396.firebaseapp.com",
+  projectId: "kids-planner-54396",
+  storageBucket: "kids-planner-54396.firebasestorage.app",
+  messagingSenderId: "769781839520",
+  appId: "1:769781839520:web:3078be201f690fcd3efbc5"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
