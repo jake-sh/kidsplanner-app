@@ -460,12 +460,14 @@ function openPlanFeature(i) {
 }
 
 // ── 알림장 ──────────────────────────────────────────
+var CRAWL_SERVER = 'https://kidsplanner-fcm.onrender.com';
+
 function openNotice() {
   showScreen('noticeScreen');
   loadNotices();
 }
 
-function noticeMonthMove(dir) {} // 당일만 표시하므로 미사용
+function noticeMonthMove(dir) {}
 
 function loadNotices() {
   var listEl    = document.getElementById('noticeList');
@@ -475,53 +477,114 @@ function loadNotices() {
   listEl.innerHTML = '';
   if (loadingEl) loadingEl.style.display = 'block';
 
-  // alimjang_today 컬렉션에서 당일 데이터 빠르게 읽기
-  // 학생이 여러 명일 수 있으므로 전체 문서 읽기
+  // 1. Firestore 캐시 즉시 표시
+  showLatestFromFirestore(function(hasData) {
+    // 2. 백그라운드에서 크롤링 (결과 오면 자동 갱신)
+    triggerCrawlInBackground(hasData);
+  });
+}
+
+function showLatestFromFirestore(callback) {
+  var loadingEl = document.getElementById('noticeLoading');
+
   db.collection('alimjang_today').get()
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
 
       if (snap.empty) {
-        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;font-size:14px;">📚<br><br>오늘의 알림장이 없습니다.<br><span style="font-size:12px;opacity:0.7;">매일 오후 6시에 업데이트됩니다.</span></div>';
+        // alimjang_today 없으면 alimjang에서 최근 데이터
+        loadLatestFromAlimjang(callback);
         return;
       }
 
-      var html = '';
+      // 가장 최근 날짜 문서 찾기
+      var latest = null;
       snap.docs.forEach(function(doc) {
         var d = doc.data();
-        var today = new Date().toISOString().slice(0,10);
-
-        // 오늘 날짜 데이터만 표시
-        if (d.date !== today) {
-          return;
-        }
-
-        (d.notices || []).forEach(function(n) {
-          var content = (n.content || '').replace(/\n/g, '<br>');
-          html +=
-            '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-            '<span style="font-size:12px;color:#8B8FA8;">' + esc(n.date||'') + '</span>' +
-            '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(n.subject||'') + '</span>' +
-            '</div>' +
-            '<div style="font-size:14px;line-height:1.8;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
-            '</div>';
-        });
+        if (!latest || (d.date && d.date > latest.date)) latest = d;
       });
 
-      if (!html) {
-        listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#8B8FA8;font-size:14px;">📚<br><br>오늘의 알림장이 없습니다.<br><span style="font-size:12px;opacity:0.7;">매일 오후 6시에 업데이트됩니다.</span></div>';
-      } else {
+      if (latest && latest.notices && latest.notices.length > 0) {
         var today = new Date().toISOString().slice(0,10);
-        listEl.innerHTML =
-          '<div style="text-align:center;font-size:12px;color:#8B8FA8;padding:8px 0 12px;">' + today + ' 알림장</div>' +
-          html;
+        var isOld = latest.date !== today;
+        renderNoticeItems(latest.notices, latest.date, isOld);
+        if (callback) callback(true);
+      } else {
+        loadLatestFromAlimjang(callback);
       }
     })
-    .catch(function(e) {
-      if (loadingEl) loadingEl.style.display = 'none';
-      listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;font-size:13px;">불러오기 실패<br>' + e.message + '</div>';
+    .catch(function() {
+      loadLatestFromAlimjang(callback);
     });
+}
+
+function loadLatestFromAlimjang(callback) {
+  var loadingEl = document.getElementById('noticeLoading');
+  var listEl    = document.getElementById('noticeList');
+
+  db.collection('alimjang').orderBy('date','desc').limit(10).get()
+    .then(function(snap) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (snap.empty) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#8B8FA8;font-size:14px;">📚<br><br>알림장이 없습니다.</div>';
+        if (callback) callback(false);
+        return;
+      }
+      var items = snap.docs.map(function(d){ return d.data(); });
+      var latestDate = items[0].date;
+      var latestItems = items.filter(function(n){ return n.date === latestDate; });
+      var today = new Date().toISOString().slice(0,10);
+      renderNoticeItems(latestItems, latestDate, latestDate !== today);
+      if (callback) callback(true);
+    })
+    .catch(function() {
+      var loadingEl = document.getElementById('noticeLoading');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (callback) callback(false);
+    });
+}
+
+function triggerCrawlInBackground(hasData) {
+  if (!CRAWL_SERVER || CRAWL_SERVER === 'YOUR_RENDER_URL') return;
+  var indicator = document.getElementById('noticeUpdateIndicator');
+  if (indicator) indicator.style.display = 'block';
+
+  fetch(CRAWL_SERVER + '/crawl', { method: 'GET' })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      if (indicator) indicator.style.display = 'none';
+      // 새 데이터 저장됐으면 화면 갱신
+      if (result.saved > 0) {
+        showLatestFromFirestore(null);
+      }
+    })
+    .catch(function() {
+      if (indicator) indicator.style.display = 'none';
+    });
+}
+
+function renderNoticeItems(notices, date, isOld) {
+  var listEl = document.getElementById('noticeList');
+  if (!listEl) return;
+
+  var dateLabel = isOld
+    ? '<div style="text-align:center;font-size:12px;color:#f59e0b;padding:8px 0 12px;">📌 ' + date + ' (최근 알림장)</div>'
+    : '<div style="text-align:center;font-size:12px;color:#8B8FA8;padding:8px 0 12px;">' + date + ' 알림장</div>';
+
+  var updateBar = '<div id="noticeUpdateIndicator" style="display:none;text-align:center;font-size:11px;color:#8B8FA8;padding:4px 0 8px;">🔄 업데이트 확인 중...</div>';
+
+  var html = notices.map(function(n) {
+    var content = (n.content || '').replace(/\n/g, '<br>');
+    return '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '<span style="font-size:12px;color:#8B8FA8;">' + esc(n.date||date) + '</span>' +
+      '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(n.subject||'') + '</span>' +
+      '</div>' +
+      '<div style="font-size:14px;line-height:1.8;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
+      '</div>';
+  }).join('');
+
+  listEl.innerHTML = updateBar + dateLabel + html;
 }
 
 
