@@ -2,12 +2,12 @@
 // ⚠️ 새 Kids Planner 프로젝트로 변경 필요!
 // Firebase 콘솔에서 새 프로젝트 만든 후 아래 설정 교체
 const firebaseConfig = {
-  apiKey: "AIzaSyD-y5ZAx07RKP266wSk5Wn8iA31TKrw2hA",
-  authDomain: "kids-planner-54396.firebaseapp.com",
-  projectId: "kids-planner-54396",
-  storageBucket: "kids-planner-54396.firebasestorage.app",
-  messagingSenderId: "769781839520",
-  appId: "1:769781839520:web:3078be201f690fcd3efbc5"
+  apiKey: "YOUR_NEW_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -59,14 +59,26 @@ let deleteTimers = {}, countdownTimers = {}, qrScanner = null;
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingMemoIndex = null;
 
-// ── localStorage.setItem 래퍼: 백업 대상 키 변경 시 자동 백업 스케줄 ──
-// BACKUP_KEYS는 아래쪽에 정의되어 있어 런타임 참조 시점엔 존재함
+// ── Kids Planner 전용 localStorage 네임스페이스 ──
+// 모든 키에 'kp_' 접두사를 붙여 My Planner와 완전 분리
 (function() {
-  var origSetItem = Storage.prototype.setItem;
+  var NS = 'kp_';
+  var _get = Storage.prototype.getItem;
+  var _set = Storage.prototype.setItem;
+  var _rem = Storage.prototype.removeItem;
+
+  function ns(key) {
+    if (!key) return key;
+    if (key.indexOf(NS) === 0) return key;
+    return NS + key;
+  }
+
+  Storage.prototype.getItem = function(key) {
+    return _get.call(this, ns(key));
+  };
   Storage.prototype.setItem = function(key, value) {
-    var result = origSetItem.apply(this, arguments);
+    var result = _set.call(this, ns(key), value);
     try {
-      // myCode가 있고, 백업 대상 키인 경우에만 스케줄
       if (this === window.localStorage && typeof myCode !== 'undefined' && myCode &&
           typeof BACKUP_KEYS !== 'undefined' && BACKUP_KEYS.indexOf(key) >= 0 &&
           typeof scheduleBackup === 'function') {
@@ -74,6 +86,9 @@ let editingMemoIndex = null;
       }
     } catch(e) {}
     return result;
+  };
+  Storage.prototype.removeItem = function(key) {
+    return _rem.call(this, ns(key));
   };
 })();
 
@@ -3973,8 +3988,8 @@ async function getSW() {
 }
 
 // ⚠️ 새 Firebase 프로젝트의 VAPID 키와 Render 서버 URL로 변경 필요!
-const VAPID_KEY = 'BAPRCLaDbPf-Q5YC_SzT_eB0neoKwvF3JpFT8XQg4K1QBjwcRXCXUCoGTv-OC6g6-kuycVU_NrfHa9xo7htknl0';
-const FCM_SERVER = 'https://kidsplanner-fcm.onrender.com';
+const VAPID_KEY = 'YOUR_VAPID_KEY_HERE';
+const FCM_SERVER = 'https://YOUR-RENDER-APP.onrender.com';
 
 let fcmToken = localStorage.getItem('fcmToken') || null;
 let messaging = null;
