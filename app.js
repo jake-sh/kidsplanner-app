@@ -475,27 +475,38 @@ function loadNotices() {
   listEl.innerHTML = '';
   if (loadingEl) loadingEl.style.display = 'block';
 
+  // 디버그: Firebase 연결 상태 확인
+  try {
+    var testRef = db.collection('alimjang_today');
+    listEl.innerHTML = '<div style="font-size:11px;color:#888;padding:8px;">🔍 Firebase 연결 시도 중...</div>';
+  } catch(e) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    listEl.innerHTML = '<div style="padding:20px;color:red;font-size:12px;">❌ Firebase 오류: ' + e.message + '</div>';
+    return;
+  }
+
   // 1. Firestore 캐시 즉시 표시
   showLatestFromFirestore(function(hasData) {
-    // 2. 백그라운드에서 크롤링 (결과 오면 자동 갱신)
     triggerCrawlInBackground(hasData);
   });
 }
 
 function showLatestFromFirestore(callback) {
   var loadingEl = document.getElementById('noticeLoading');
+  var listEl    = document.getElementById('noticeList');
 
   db.collection('alimjang_today').get()
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
 
+      // 디버그: 문서 수 표시
+      listEl.innerHTML = '<div style="font-size:11px;color:#888;padding:4px 8px;">📦 alimjang_today: ' + snap.size + '개</div>';
+
       if (snap.empty) {
-        // alimjang_today 없으면 alimjang에서 최근 데이터
         loadLatestFromAlimjang(callback);
         return;
       }
 
-      // 가장 최근 날짜 문서 찾기
       var latest = null;
       snap.docs.forEach(function(doc) {
         var d = doc.data();
@@ -511,7 +522,9 @@ function showLatestFromFirestore(callback) {
         loadLatestFromAlimjang(callback);
       }
     })
-    .catch(function() {
+    .catch(function(e) {
+      if (loadingEl) loadingEl.style.display = 'none';
+      listEl.innerHTML = '<div style="padding:20px;color:red;font-size:12px;">❌ alimjang_today 오류: ' + e.message + '</div>';
       loadLatestFromAlimjang(callback);
     });
 }
@@ -523,8 +536,12 @@ function loadLatestFromAlimjang(callback) {
   db.collection('alimjang').orderBy('date','desc').limit(10).get()
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
+
+      // 디버그: 문서 수 표시
+      var debugMsg = '<div style="font-size:11px;color:#888;padding:4px 8px;">📦 alimjang: ' + snap.size + '개</div>';
+
       if (snap.empty) {
-        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#8B8FA8;font-size:14px;">📚<br><br>알림장이 없습니다.</div>';
+        listEl.innerHTML = debugMsg + '<div style="text-align:center;padding:40px;color:#8B8FA8;font-size:14px;">📚<br><br>알림장이 없습니다.</div>';
         if (callback) callback(false);
         return;
       }
@@ -532,12 +549,13 @@ function loadLatestFromAlimjang(callback) {
       var latestDate = items[0].date;
       var latestItems = items.filter(function(n){ return n.date === latestDate; });
       var today = new Date().toISOString().slice(0,10);
+      listEl.innerHTML = debugMsg;
       renderNoticeItems(latestItems, latestDate, latestDate !== today);
       if (callback) callback(true);
     })
-    .catch(function() {
-      var loadingEl = document.getElementById('noticeLoading');
+    .catch(function(e) {
       if (loadingEl) loadingEl.style.display = 'none';
+      listEl.innerHTML = '<div style="padding:20px;color:red;font-size:12px;">❌ alimjang 오류: ' + e.message + '</div>';
       if (callback) callback(false);
     });
 }
