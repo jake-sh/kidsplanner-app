@@ -475,17 +475,6 @@ function loadNotices() {
   listEl.innerHTML = '';
   if (loadingEl) loadingEl.style.display = 'block';
 
-  // 디버그: Firebase 연결 상태 확인
-  try {
-    var testRef = db.collection('alimjang_today');
-    listEl.innerHTML = '<div style="font-size:11px;color:#888;padding:8px;">🔍 Firebase 연결 시도 중...</div>';
-  } catch(e) {
-    if (loadingEl) loadingEl.style.display = 'none';
-    listEl.innerHTML = '<div style="padding:20px;color:red;font-size:12px;">❌ Firebase 오류: ' + e.message + '</div>';
-    return;
-  }
-
-  // 1. Firestore 캐시 즉시 표시
   showLatestFromFirestore(function(hasData) {
     triggerCrawlInBackground(hasData);
   });
@@ -498,9 +487,6 @@ function showLatestFromFirestore(callback) {
   db.collection('alimjang_today').get()
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
-
-      // 디버그: 문서 수 표시
-      listEl.innerHTML = '<div style="font-size:11px;color:#888;padding:4px 8px;">📦 alimjang_today: ' + snap.size + '개</div>';
 
       if (snap.empty) {
         loadLatestFromAlimjang(callback);
@@ -537,11 +523,8 @@ function loadLatestFromAlimjang(callback) {
     .then(function(snap) {
       if (loadingEl) loadingEl.style.display = 'none';
 
-      // 디버그: 문서 수 표시
-      var debugMsg = '<div style="font-size:11px;color:#888;padding:4px 8px;">📦 alimjang: ' + snap.size + '개</div>';
-
       if (snap.empty) {
-        listEl.innerHTML = debugMsg + '<div style="text-align:center;padding:40px;color:#8B8FA8;font-size:14px;">📚<br><br>알림장이 없습니다.</div>';
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#8B8FA8;font-size:14px;">📚<br><br>알림장이 없습니다.</div>';
         if (callback) callback(false);
         return;
       }
@@ -549,7 +532,6 @@ function loadLatestFromAlimjang(callback) {
       var latestDate = items[0].date;
       var latestItems = items.filter(function(n){ return n.date === latestDate; });
       var today = new Date().toISOString().slice(0,10);
-      listEl.innerHTML = debugMsg;
       renderNoticeItems(latestItems, latestDate, latestDate !== today);
       if (callback) callback(true);
     })
@@ -563,13 +545,12 @@ function loadLatestFromAlimjang(callback) {
 function triggerCrawlInBackground(hasData) {
   if (!CRAWL_SERVER || CRAWL_SERVER === 'YOUR_RENDER_URL') return;
   var indicator = document.getElementById('noticeUpdateIndicator');
-  if (indicator) indicator.style.display = 'block';
+  if (indicator) indicator.style.display = 'inline';
 
   fetch(CRAWL_SERVER + '/crawl', { method: 'GET' })
     .then(function(r) { return r.json(); })
     .then(function(result) {
       if (indicator) indicator.style.display = 'none';
-      // 새 데이터 저장됐으면 화면 갱신
       if (result.saved > 0) {
         showLatestFromFirestore(null);
       }
@@ -583,24 +564,20 @@ function renderNoticeItems(notices, date, isOld) {
   var listEl = document.getElementById('noticeList');
   if (!listEl) return;
 
-  var dateLabel = isOld
-    ? '<div style="text-align:center;font-size:12px;color:#f59e0b;padding:8px 0 12px;">📌 ' + date + ' (최근 알림장)</div>'
-    : '<div style="text-align:center;font-size:12px;color:#8B8FA8;padding:8px 0 12px;">' + date + ' 알림장</div>';
-
-  var updateBar = '<div id="noticeUpdateIndicator" style="display:none;text-align:center;font-size:11px;color:#8B8FA8;padding:4px 0 8px;">🔄 업데이트 확인 중...</div>';
+  var dateLabel = '<div style="font-size:12px;color:#8B8FA8;padding:4px 0 10px;">' + date + '</div>';
 
   var html = notices.map(function(n) {
     var content = (n.content || '').replace(/\n/g, '<br>');
-    return '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);">' +
+    return '<div style="background:var(--card-bg,#fff);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid var(--border-color,#eee);width:100%;box-sizing:border-box;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
       '<span style="font-size:12px;color:#8B8FA8;">' + esc(n.date||date) + '</span>' +
       '<span style="font-size:11px;background:#EEF2FF;color:#6366f1;padding:2px 8px;border-radius:10px;font-weight:600;">' + esc(n.subject||'') + '</span>' +
       '</div>' +
-      '<div style="font-size:14px;line-height:1.8;color:var(--text-primary,#1a1a2e);">' + content + '</div>' +
+      '<div style="font-size:14px;line-height:1.8;color:var(--text-primary,#1a1a2e);word-break:break-word;">' + content + '</div>' +
       '</div>';
   }).join('');
 
-  listEl.innerHTML = updateBar + dateLabel + html;
+  listEl.innerHTML = dateLabel + html;
 }
 
 
